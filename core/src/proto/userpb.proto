@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+// Explicit defaults below preserve capture-verified wire fields with protobufjs 8.6.
+
 package gamepb.userpb;
 
 import "corepb.proto";
@@ -8,13 +10,13 @@ import "avatarframepb.proto";
 // ============ 登录请求 ============
 message LoginRequest {
     // 字段 1,2 保留未使用
-    int64 sharer_id = 3;
-    string sharer_open_id = 4;
+    optional int64 sharer_id = 3;
+    optional string sharer_open_id = 4;
     DeviceInfo device_info = 5;
-    int64 share_cfg_id = 6;
+    optional int64 share_cfg_id = 6;
     string scene_id = 7;
     ReportData report_data = 8;
-    bytes extra = 9;
+    optional bytes extra = 9;
 }
 
 // 设备信息
@@ -38,14 +40,14 @@ message DeviceInfo {
 
 // 上报数据
 message ReportData {
-    string callback = 1;
-    string cd_extend_info = 2;
-    string click_id = 3;
-    string clue_token = 4;
+    optional string callback = 1;
+    optional string cd_extend_info = 2;
+    optional string click_id = 3;
+    optional string clue_token = 4;
     string minigame_channel = 5;
     int32 minigame_platid = 6;
-    string req_id = 7;
-    string trackid = 8;
+    optional string req_id = 7;
+    optional string trackid = 8;
 }
 
 message GuideNode {
@@ -175,7 +177,7 @@ message VersionInfo {
 message HeartbeatRequest {
     int64 gid = 1;
     string client_version = 2;
-    int64 field_3 = 3;
+    optional int64 field_3 = 3;
 }
 
 message HeartbeatReply {

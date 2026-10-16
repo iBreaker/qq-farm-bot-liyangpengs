@@ -1,4 +1,6 @@
 syntax = "proto3";
+
+// Explicit defaults below preserve capture-verified wire fields with protobufjs 8.6.
 package gamepb.activitypb;
 import "corepb.proto";
 
@@ -263,7 +265,7 @@ message MilkTeaHireReq {
 }
 
 message MilkTeaHireItem {
-    int32 slot_index = 1;
+    optional int32 slot_index = 1;
     int32 duration_id = 2;
     int64 target_gid = 3;
 }
@@ -273,7 +275,7 @@ message MilkTeaHireRsp {
 }
 
 message MilkTeaHireResult {
-    int32 slot_index = 1;
+    optional int32 slot_index = 1;
     int32 duration_id = 2;
     int64 target_gid = 3;
     bool success = 4;
@@ -397,7 +399,7 @@ message MilkTeaGetSalesLogRsp {
 }
 
 message MilkTeaSetHireDisableReq {
-    bool hire_disabled = 1;
+    optional bool hire_disabled = 1;
 }
 
 message MilkTeaSetHireDisableRsp {

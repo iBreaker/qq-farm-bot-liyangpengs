@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+// Explicit defaults below preserve capture-verified wire fields with protobufjs 8.6.
+
 package gamepb.solartermspb;
 import "corepb.proto";
 
@@ -86,7 +88,7 @@ message ClaimSolarTermsV2Reply {
 
 message AnswerSolarTermsRequest {
     int64 id = 1;
-    int32 option_index = 2;
+    optional int32 option_index = 2;
 }
 
 message AnswerSolarTermsReply {

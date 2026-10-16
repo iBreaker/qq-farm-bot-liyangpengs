@@ -1,4 +1,6 @@
 syntax = "proto3";
+
+// Explicit defaults below preserve capture-verified wire fields with protobufjs 8.6.
 package gamepb.activitypb;
 import "corepb.proto";
 
@@ -80,7 +82,7 @@ message ShareRewardRedDots {
 message ShareRewardActorView {
     int64 gid = 1;
     string name = 2;
-    string avatar = 3;
+    optional string avatar = 3;
     int64 avatar_frame_id = 4;
     int64 level = 5;
 }
