@@ -3,12 +3,13 @@ import type { ActivityTab } from '@/components/activity/BottomNav.vue'
 import type { ActivityDirectoryItemDto, ActivityGameplayKey } from '@/stores/activity-center'
 import { useNotification } from 'naive-ui/es/notification'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { resolveActivityGameplay } from '@/components/activity/gameplays'
 import ShareRewardActivity from '@/components/activity/ShareRewardActivity.vue'
 import { useAccountStore } from '@/stores/account'
 import { useActivityCenterStore } from '@/stores/activity-center'
+import { useAppStore } from '@/stores/app'
 import { useFriendStore } from '@/stores/friend'
 import ActivityDirectoryPage from './activity-center/ActivityDirectoryPage.vue'
 import AutumnActivityPage from './activity-center/AutumnActivityPage.vue'
@@ -29,6 +30,10 @@ const { currentAccountId } = storeToRefs(accountStore)
 const { season, shop, solarTerms, constellation, notice, actionError } = storeToRefs(activityStore)
 const selectedActivity = ref<ActivityGameplayKey | null>(null)
 const selectedInstanceId = ref('')
+const appStore = useAppStore()
+watch(selectedActivity, (value) => {
+  appStore.activityDetailOpen = !!value
+}, { immediate: true })
 const stellarEntryTab = ref<ActivityTab>('travel')
 const stellarDetailsAvailable = computed(() => !!(season.value || shop.value || constellation.value || solarTerms.value))
 
@@ -103,6 +108,9 @@ watch(stellarDetailsAvailable, (available) => {
 
 onMounted(() => {
   activityStore.refresh(accountId())
+})
+onUnmounted(() => {
+  appStore.activityDetailOpen = false
 })
 </script>
 
@@ -247,7 +255,7 @@ onMounted(() => {
   border-radius: 6px;
   color: var(--ui-primary);
   background: var(--ui-surface);
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 
@@ -298,7 +306,7 @@ onMounted(() => {
 
 .activity-entry--ended {
   border-color: rgba(89, 102, 97, 0.18);
-  background: rgba(245, 247, 246, 0.58);
+  background: color-mix(in srgb, var(--ui-surface-soft) 70%, transparent);
 }
 
 .activity-entry:disabled {
@@ -339,12 +347,12 @@ onMounted(() => {
   color: var(--ui-primary);
   background: var(--ui-primary-soft);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .activity-entry--upcoming .activity-entry__icon,
 .activity-entry--upcoming .activity-entry__status {
-  color: #93651e;
+  color: var(--ui-warning);
   background: var(--ui-warning-soft);
 }
 
@@ -381,7 +389,7 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .activity-entry--supported .activity-entry__footer > span {

@@ -455,6 +455,12 @@ function applyRuntimeConfig(snapshot: any, syncNow: boolean = false): number {
     if (!loginReady && snapshot && snapshot.systemServerUrl !== undefined) {
         updateRuntimeConfig({ serverUrl: String(snapshot.systemServerUrl || '') });
     }
+    if (!loginReady && snapshot?.systemDeviceInfo) {
+        updateRuntimeConfig({ deviceInfo: snapshot.systemDeviceInfo });
+    }
+    if (!loginReady && snapshot?.systemWxClientVersion !== undefined) {
+        updateRuntimeConfig({ wxClientVersion: String(snapshot.systemWxClientVersion || '') });
+    }
     if (!loginReady && snapshot && snapshot.systemClientVersion !== undefined) {
         updateRuntimeConfig({ clientVersion: String(snapshot.systemClientVersion || '') });
     }
@@ -538,10 +544,12 @@ async function startBot(config: any): Promise<void> {
     shutdownStarted = false;
     runtimeGeneration += 1;
 
-    const { code, platform, systemTimeZone, systemServerUrl, systemClientVersion } = config;
+    const { code, platform, systemTimeZone, systemServerUrl, systemClientVersion, systemWxClientVersion, systemDeviceInfo } = config;
 
     if (systemTimeZone !== undefined) updateRuntimeConfig({ timeZone: systemTimeZone });
     if (systemServerUrl !== undefined) updateRuntimeConfig({ serverUrl: String(systemServerUrl || '') });
+    if (systemDeviceInfo) updateRuntimeConfig({ deviceInfo: systemDeviceInfo });
+    if (systemWxClientVersion !== undefined) updateRuntimeConfig({ wxClientVersion: String(systemWxClientVersion || '') });
     if (systemClientVersion !== undefined) updateRuntimeConfig({ clientVersion: String(systemClientVersion || '') });
     CONFIG.platform = platform || 'qq';
     // 注意：间隔配置由 applyIntervalsToRuntime 统一处理，不要在这里覆盖
@@ -791,6 +799,12 @@ async function handleApiCall(msg: any): Promise<void> {
             case 'getIllustratedSnapshot':
                 result = await require('../services/illustrated').getIllustratedSnapshot();
                 break;
+            case 'getCollectionsSnapshot':
+                result = await require('../services/collections').getCollectionsSnapshot();
+                break;
+            case 'operateCollections':
+                result = await require('../services/collections').operateCollections(args[0], args[1]);
+                break;
             case 'claimIllustratedRewards':
                 result = await require('../services/illustrated').claimIllustratedRewards(args[0]);
                 break;
@@ -914,7 +928,7 @@ async function handleApiCall(msg: any): Promise<void> {
                 result = await fertilizeOwnLand(args[0], args[1]);
                 break;
             case 'fertilizeAllOwnLands':
-                result = await require('../services/farm').fertilizeAllOwnLands(args[0]);
+                result = await require('../services/farm').fertilizeAllOwnLands(args[0], args[1]);
                 break;
             case 'buyFertilizer': {
                 const fertilizerType = args[0] || 'organic';
@@ -1073,6 +1087,12 @@ async function handleApiCall(msg: any): Promise<void> {
             case 'operateAutumnActivity':
                 result = await require('../services/autumn-activities').operateAutumnActivity(args[0], args[1], args[2]);
                 break;
+            case 'getPropsShop':
+                result = await require('../services/commerce').getPropsShop();
+                break;
+            case 'purchaseProps':
+                result = await require('../services/commerce').purchaseProps(args[0], args[1], args[2]);
+                break;
             case 'getMallCatalog':
                 result = await require('../services/commerce').getMallCatalog(args[0], args[1]);
                 break;
@@ -1158,10 +1178,12 @@ async function getDailyGiftOverview(propagateErrors: boolean = false): Promise<a
                 label: '会员礼包',
                 enabled: true,
                 doneToday: !!vip.doneToday,
-                lastAt: Number(vip.lastClaimAt || vip.lastCheckAt || 0),
-                hasGift: Object.hasOwn(vip, 'hasGift') ? !!vip.hasGift : undefined,
-                canClaim: Object.hasOwn(vip, 'canClaim') ? !!vip.canClaim : undefined,
+                lastAt: Math.max(Number(vip.lastClaimAt || 0), Number(vip.lastCheckAt || 0)),
+                isVip: typeof vip.isVip === 'boolean' ? vip.isVip : null,
+                hasGift: typeof vip.hasGift === 'boolean' ? vip.hasGift : null,
+                canClaim: typeof vip.canClaim === 'boolean' ? vip.canClaim : null,
                 result: vip.result || '',
+                lastError: vip.lastError || '',
             },
             {
                 key: 'month_card_gift',

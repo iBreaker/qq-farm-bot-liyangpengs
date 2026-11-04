@@ -164,11 +164,8 @@ onUnmounted(() => sequence++)
 
 <template>
   <div class="solar">
-    <header class="solar-head">
-      <div>
-        <p>QQ 农场</p>
-        <h1>节令日历</h1>
-      </div>
+    <header class="page-toolbar">
+      <span class="text-sm text-gray-500">按当前账号读取节令进度</span>
       <NButton :loading="busy" :disabled="!currentAccountId || !connected" @click="request()">
         <template #icon>
           <span class="i-carbon-renew" />
@@ -278,12 +275,13 @@ onUnmounted(() => sequence++)
             <label
               v-for="(option, index) in question.options"
               :key="index"
-              :class="{ selected: answer === index, wrong: question.wrongOptions.includes(index) }"
+              :class="{ selected: answer === index, correct: question.answerIndex === index, wrong: question.wrongOptions.includes(index) }"
             >
               <input v-model="answer" type="radio" name="solar-answer" :value="index" :disabled="busy || question.wrongOptions.includes(index)">
               <b class="answer-options__letter">{{ optionParts(option, index).letter }}</b>
-              <span>{{ optionParts(option, index).text }}</span>
-              <small v-if="question.wrongOptions.includes(index)">已答错</small>
+              <span class="answer-options__text">{{ optionParts(option, index).text }}</span>
+              <small v-if="question.answerIndex === index" class="answer-options__correct">正确答案</small>
+              <small v-else-if="question.wrongOptions.includes(index)">已答错</small>
             </label>
           </div>
         </div>
@@ -302,8 +300,8 @@ onUnmounted(() => sequence++)
   --seal: #c0533f;
   --seal-soft: #fbece8;
   --serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', SimSun, serif;
-  max-width: 1100px;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
   color: var(--ui-ink);
   container-type: inline-size;
 }
@@ -321,7 +319,7 @@ onUnmounted(() => sequence++)
   margin: 0 0 4px;
   color: var(--ui-primary);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 .solar-head h1 {
   margin: 0;
@@ -384,7 +382,7 @@ onUnmounted(() => sequence++)
   border-color: color-mix(in srgb, var(--ui-primary) 30%, transparent);
   color: var(--ui-primary);
   background: var(--ui-primary-soft);
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 .season-tabs button.selected small {
   color: var(--ui-primary);
@@ -486,7 +484,7 @@ onUnmounted(() => sequence++)
   overflow: hidden;
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  background: #fff;
+  background: var(--ui-surface-strong);
   box-shadow: 0 2px 0 var(--ui-border);
 }
 .leaf__month {
@@ -495,7 +493,7 @@ onUnmounted(() => sequence++)
   color: #fff;
   background: var(--seal);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   text-align: center;
 }
 .leaf__day {
@@ -521,14 +519,14 @@ onUnmounted(() => sequence++)
   place-items: center;
   border-radius: 50%;
   color: var(--ui-primary);
-  background: #fff;
+  background: var(--ui-surface-strong);
   font-size: 10px;
 }
 .term--upcoming .leaf__month {
   background: #9aa79e;
 }
 .term--done .leaf__month {
-  background: var(--ui-primary);
+  background: var(--ui-primary-fill);
 }
 .term--expired .leaf__month {
   background: #b6bab5;
@@ -552,7 +550,7 @@ onUnmounted(() => sequence++)
   margin: 0;
   font-family: var(--serif);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   letter-spacing: 0.08em;
 }
 .term__lunar {
@@ -572,7 +570,7 @@ onUnmounted(() => sequence++)
 .term--open .term__badge {
   color: var(--seal);
   background: var(--seal-soft);
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 .term--upcoming .term__badge {
   color: var(--ui-warning);
@@ -587,7 +585,7 @@ onUnmounted(() => sequence++)
   flex-wrap: wrap;
   gap: 0 18px;
   margin: 8px 0 0;
-  color: #5f6a61;
+  color: var(--ui-muted);
   font-family: var(--serif);
   font-size: 14px;
   line-height: 1.8;
@@ -644,7 +642,7 @@ onUnmounted(() => sequence++)
   margin: 0;
   padding: 8px 10px;
   border-radius: 8px;
-  color: #8a6127;
+  color: var(--ui-warning);
   background: var(--ui-warning-soft);
   font-size: 13px;
   line-height: 1.6;
@@ -654,16 +652,21 @@ onUnmounted(() => sequence++)
   margin-top: 3px;
 }
 
-/* 宽屏：日历页 | 节令内容 | 奖励，左右两列固定宽度，各行按钮上下对齐 */
+/* 宽屏：节令是按时间排列的序列，保持单列时间线。
+   每行「日历页 | 节令内容 | 奖励」三栏统一垂直居中，奖励栏定宽，各行按钮落在同一条竖线上。 */
 @container (min-width: 820px) {
   .term {
-    grid-template-columns: 72px minmax(0, 1fr) 360px;
+    grid-template-columns: 72px minmax(0, 1fr) minmax(360px, 440px);
     align-items: center;
+    gap: 14px 24px;
+  }
+  .leaf {
+    align-self: center;
   }
   .term__rewards {
     grid-column: auto;
     align-self: center;
-    padding: 0 0 0 20px;
+    padding: 2px 0 2px 24px;
     border-top: 0;
     border-left: 1px dashed var(--ui-border-strong);
   }
@@ -690,7 +693,7 @@ onUnmounted(() => sequence++)
   margin: 0;
   color: var(--ui-ink);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   line-height: 1.7;
 }
 .answer-options {
@@ -733,10 +736,17 @@ onUnmounted(() => sequence++)
   border-color: var(--ui-primary);
   background: var(--ui-primary-soft);
 }
+.answer-options label.correct {
+  border-color: color-mix(in srgb, var(--ui-primary) 60%, var(--ui-border-strong));
+}
+.answer-options__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .answer-options label.selected .answer-options__letter {
   border-color: var(--ui-primary);
   color: #fff;
-  background: var(--ui-primary);
+  background: var(--ui-primary-fill);
 }
 .answer-options label:has(input:focus-visible) {
   outline: 2px solid var(--ui-primary);
@@ -750,9 +760,18 @@ onUnmounted(() => sequence++)
   text-decoration: line-through;
 }
 .answer-options label small {
+  flex-shrink: 0;
   margin-left: auto;
   color: var(--ui-danger);
   font-size: 12px;
+}
+.answer-options label .answer-options__correct {
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--ui-primary) 60%, var(--ui-ink));
+  background: var(--ui-primary-soft);
+  font-weight: var(--fw-600);
+  white-space: nowrap;
 }
 
 @media (max-width: 600px) {
@@ -764,9 +783,12 @@ onUnmounted(() => sequence++)
   }
   .season-bar__reward {
     width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
   }
-  .season-bar__reward .chips {
-    flex: 1;
+  .season-bar__reward .line-label {
+    grid-column: 1 / -1;
   }
   .timeline::before {
     left: 44px;
@@ -799,5 +821,23 @@ onUnmounted(() => sequence++)
   .reward-line :deep(.n-button) {
     min-width: 88px;
   }
+}
+
+/* 深色：印章红与日历页眉降低亮度，淡色背景改为半透明。 */
+.dark .solar {
+  --seal: #d4705e;
+  --seal-soft: rgba(212, 112, 94, 0.14);
+}
+.dark .term--open .leaf__month {
+  background: #b5503f;
+}
+.dark .term--upcoming .leaf__month {
+  background: #4b535c;
+}
+.dark .term--expired .leaf__month {
+  background: #3a4048;
+}
+.dark .term--expired .leaf__day {
+  color: var(--ui-subtle);
 }
 </style>
