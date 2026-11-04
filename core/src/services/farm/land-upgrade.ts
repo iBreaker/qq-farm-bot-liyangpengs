@@ -53,7 +53,7 @@ export function buildLandUpgradeDetail(land: any, landsMap: Map<number, any> = n
         ? [...landsMap.values()].filter(entry => entry.unlocked && number(entry.level) >= level).length
         : null;
     return { mode: 'upgrade', current, next, serverAllowed: !!land?.could_upgrade,
-        needLevel: condition ? number(condition.level_need) : (config?.level_need ?? null),
+        needLevel: condition ? (number(condition.level_need) || null) : (config?.level_need ?? null),
         prerequisite: null,
         precedingLands: precedingCount > 0 ? { name: current?.name || `等级${level}土地`, required: precedingCount,
             owned: precedingOwned, met: precedingOwned === null ? null : precedingOwned >= precedingCount } : null,

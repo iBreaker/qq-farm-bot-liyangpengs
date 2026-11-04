@@ -11,7 +11,7 @@ message PlayerLoginRequest {
     int64 share_cfg_id = 4;
     string scene_id = 5;
     ReportData report_data = 6;
-    string share_key = 7;
+    optional string share_key = 7;
     repeated string experiment_keys = 8;
     int32 ark_biz_type = 11;
     bytes ark_biz_param = 12;
