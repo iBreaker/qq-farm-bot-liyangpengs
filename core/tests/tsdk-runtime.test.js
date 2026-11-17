@@ -16,7 +16,7 @@ const {
 } = require('../dist/utils/tsdk-runtime');
 
 const EXPECTED_QQ_CREDENTIAL_BYTES = Buffer.from(
-    "344e0d774812caf143fabc83bfe2fef9f863b450d5ee978e5c7b50dfa10f02df7b677d833d474225755fd7b82d6397caad3467cb4ce6ecccaa389a0bced2c183f709fb2acaa495b1ac06918bfe865b93af379489b06fa121fd9503e2956885a2b06d226fd3b8",
+    "344e0d774812caf143fabc83bfe2fef9f863b450d5ee978e5c7b50dfa10f02df7b677d833d0744259b62be263f169ebde2ee3ac19686b134aca37df27e2e55426a271eeac76ef3c642ea50ebe3396a5960febe610d5228cc5f8aa2b4fb71ea1342aadacdd3b8",
     "hex",
 );
 
@@ -50,12 +50,12 @@ test('bundled TSDK matches the audited official QQ build', () => {
     const wasmPath = path.join(__dirname, '..', 'src', 'utils', 'tsdk.wasm');
     const hash = crypto.createHash('sha256').update(fs.readFileSync(wasmPath)).digest('hex');
 
-    assert.equal(TSDK_VERSION, 'v3.9.0.1793452320');
+    assert.equal(TSDK_VERSION, 'v3.9.0.1794737607');
     assert.equal(hash, TSDK_SHA256);
-    assert.equal(hash, '8ea1090bee1cfc9c8e3bc6370b9b41f762a65988dd91b30b6def0b21834a4640');
+    assert.equal(hash, 'ab6eb0f0ee86ce8984b0c37a481ff51e7722961ff0b50a9f91e2fa9ff351ce74');
 });
 
-// Fixed synthetic-input snapshot for the hash-pinned 2026-11-02 upstream WASM.
+// Fixed synthetic-input snapshot for the hash-pinned 2026-11-17 upstream WASM.
 // This is not a real-session credential oracle or evidence of live login.
 test('QQ host inputs reproduce the complete hash-pinned synthetic regression vector', async () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qq-farm-tsdk-test-'));
@@ -94,8 +94,8 @@ test('QQ host inputs reproduce the complete hash-pinned synthetic regression vec
 
 test('WeChat loads its audited WASM and reports unsupported host calls without user data', async () => {
     const build = TSDK_BUILDS.wx;
-    assert.equal(build.version, 'v3.9.0.1793451777');
-    assert.equal(build.sha256, '0b7e8717f8c8c0f5c61da0c67e169b3f4df9d07f9d37a95a4af3e392db82900f');
+    assert.equal(build.version, 'v3.9.0.1794837963');
+    assert.equal(build.sha256, 'd14a4f5d59c8a27128019dbad25fe3cd3d5243dfc389eb9bcbb345efb1cebc9a');
     assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, '../src/utils', build.file))).digest('hex'), build.sha256);
     const originalGet = https.get;
     const originalRequest = https.request;
