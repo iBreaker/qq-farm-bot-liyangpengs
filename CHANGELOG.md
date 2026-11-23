@@ -13,4 +13,5 @@
 - Follow-up `564a878`: ranch normal/giant book checks now run on startup and
   every five minutes without notifications; giant reward claims require state
   readback. Deployed 20:17 CST; core 304/304 passed. Live reward delivery awaits
-  manual game login after the container recreation.
+  manual game login after the container recreation. Subsequent 20:18 live validation
+  confirmed all three giant tiers automatically claimed, with no pending operation.
