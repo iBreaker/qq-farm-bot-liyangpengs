@@ -2,7 +2,7 @@
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import { formatCount, formatDuration, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
+import { formatCount, formatDuration, RANCH_IMAGE, sortFacilities, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchAmountDialog from '@/components/ranch/RanchAmountDialog.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import { useRanchStore } from '@/stores/ranch'
@@ -12,8 +12,9 @@ const { refresh } = useRanchLoader('facilities')
 const { disabled, request } = useRanchActions()
 const { serverNow, remainingSeconds } = useRanchClock()
 
-const facilities = computed<any[]>(() => state.value?.facilities || [])
+const facilities = computed<any[]>(() => sortFacilities(state.value?.facilities || []))
 const grass = computed(() => Number(state.value?.grass) || 0)
+const hourglass = computed(() => Number(state.value?.hourglassSeconds) || 0)
 const grassTarget = ref<any>(null)
 
 function kind(f: any) {
@@ -30,6 +31,12 @@ function upgradeDone(f: any) {
   const end = Number(f.upgradeEndTime)
   return f.upgradeState === 2 || end * (end < 1e11 ? 1000 : 1) <= serverNow.value
 }
+function accelerate(f: any) {
+  const seconds = Math.min(hourglass.value, remainingSeconds(f.upgradeEndTime))
+  if (seconds > 0)
+    void request('speedUpUpgrade', { facilityId: f.id, seconds })
+}
+
 function submitGrass(count: number) {
   const f = grassTarget.value
   grassTarget.value = null
@@ -42,7 +49,12 @@ function submitGrass(count: number) {
   <div class="personal-panel">
     <RanchGate @retry="refresh">
       <div class="facility-bar">
-        <span class="facility-bar__stock"><img :src="RANCH_IMAGE(7001)" alt="">牧草库存 <b>{{ formatCount(state?.grass ?? 0) }}</b></span>
+        <div class="flex flex-wrap gap-2">
+          <span class="facility-bar__stock"><img :src="RANCH_IMAGE(7001)" alt="">牧草库存 <b>{{ formatCount(state?.grass ?? 0) }}</b></span>
+          <span v-if="state?.hourglassSeconds !== undefined" class="facility-bar__stock">
+            <img :src="RANCH_IMAGE(1006)" alt="">沙漏 <b>{{ formatDuration(hourglass) }}</b>
+          </span>
+        </div>
         <NButton circle quaternary size="small" title="刷新设施" aria-label="刷新设施" :loading="loading" @click="refresh">
           <template #icon>
             <span class="i-carbon-renew" />
@@ -75,7 +87,7 @@ function submitGrass(count: number) {
           </div>
 
           <div v-if="!f.active && f.moduleType === 7" class="facility__upgrade">
-            牧场 21 级解锁
+            {{ f.canActivate ? '可解锁' : Number(state?.level) < 21 ? '牧场 21 级解锁' : '等待牧场开放' }}
           </div>
           <div v-else-if="f.active && f.upgradeState" class="facility__upgrade">
             <span class="i-carbon-time" aria-hidden="true" />
@@ -94,11 +106,19 @@ function submitGrass(count: number) {
             已满级
           </p>
 
-          <footer v-if="f.active" class="facility__foot">
+          <footer v-if="f.canActivate" class="facility__foot">
+            <NButton size="small" type="primary" :disabled="disabled" @click="request('activateShed', { facilityId: f.id })">
+              解锁
+            </NButton>
+          </footer>
+          <footer v-else-if="f.active" class="facility__foot">
             <NButton v-if="f.feed" size="small" secondary :disabled="disabled || f.feed.count >= f.capacity || grass < 1" @click="grassTarget = f">
               <span class="i-carbon-add mr-0.5" aria-hidden="true" />补充牧草
             </NButton>
-            <NButton v-if="f.upgradeState" size="small" type="primary" :disabled="disabled || !upgradeDone(f)" @click="request('completeUpgrade', { facilityId: f.id })">
+            <NButton v-if="f.upgradeState && !upgradeDone(f)" size="small" secondary :disabled="disabled || hourglass < 1" @click="accelerate(f)">
+              沙漏加速
+            </NButton>
+            <NButton v-else-if="f.upgradeState" size="small" type="primary" :disabled="disabled" @click="request('completeUpgrade', { facilityId: f.id })">
               完成升级
             </NButton>
             <NButton v-else-if="f.next" size="small" :type="f.next.available ? 'primary' : 'default'" :secondary="!f.next.available" :disabled="disabled || !f.next.available" @click="request('upgrade', { facilityId: f.id })">

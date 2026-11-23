@@ -1,5 +1,5 @@
 import type { ComputedRef, InjectionKey, Ref } from 'vue'
-import type { RanchQuote, RanchView } from '@/stores/ranch'
+import type { RanchItem, RanchQuote, RanchView } from '@/stores/ranch'
 import { useNow } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, inject, onBeforeUnmount, provide, ref, watch } from 'vue'
@@ -21,18 +21,33 @@ export interface RanchPending {
   quote: RanchQuote
 }
 
+type RanchItemAmount = Pick<RanchItem, 'id' | 'count'>
+
+export interface RanchPurchaseTerms {
+  costItems: RanchItemAmount[]
+  rewards: RanchItemAmount[]
+}
+
+function itemTotals(items: RanchItemAmount[]) {
+  const totals = new Map<number, bigint>()
+  for (const item of items)
+    totals.set(item.id, (totals.get(item.id) ?? 0n) + BigInt(item.count))
+  return [...totals].filter(([, count]) => count !== 0n).map(([id, count]) => `${id}:${count}`).sort().join('|')
+}
+
 export interface RanchActions {
   pending: Ref<RanchPending | null>
   /** 读取、报价或执行中，或确认框打开时，所有写入按钮都不可用。 */
   disabled: ComputedRef<boolean>
-  request: (action: string, input?: Record<string, unknown>) => Promise<void>
+  request: (action: string, input?: Record<string, unknown>, acceptedTerms?: RanchPurchaseTerms) => Promise<void>
+  requestDirect: (action: 'feed' | 'produce' | 'harvest' | 'clean', input?: Record<string, unknown>) => Promise<void>
   confirm: () => Promise<void>
   cancel: () => void
 }
 
 const actionsKey: InjectionKey<RanchActions> = Symbol('ranch-actions')
 
-/** 牧场写入统一走“报价 → 确认 → 执行 → 按原视图刷新”，确认框由页面外壳渲染一次。 */
+/** 数量弹窗可以确认消耗，提交前仍会核对服务端报价。 */
 export function provideRanchActions(): RanchActions {
   const ranch = useRanchStore()
   const toast = useToastStore()
@@ -41,7 +56,50 @@ export function provideRanchActions(): RanchActions {
   const pending = ref<RanchPending | null>(null)
   const disabled = computed(() => loading.value || busy.value || !!pending.value)
 
-  async function request(action: string, input: Record<string, unknown> = {}) {
+  async function execute(chosen: RanchPending) {
+    const succeeded = await ranch.execute(chosen.accountId, chosen.action, chosen.input, chosen.quote.expected)
+    if (pending.value === chosen)
+      pending.value = null
+    const hostGid = typeof chosen.input.hostGid === 'string' && chosen.input.hostGid ? chosen.input.hostGid : undefined
+    if (succeeded && chosen.accountId === String(currentAccountId.value || ''))
+      await ranch.reload(chosen.accountId, hostGid ? { hostGid } : undefined)
+  }
+
+  async function requestDirect(action: 'feed' | 'produce' | 'harvest' | 'clean', input: Record<string, unknown> = {}) {
+    const accountId = String(currentAccountId.value || '')
+    if (!accountId || disabled.value)
+      return
+    const result = await ranch.executeDirect(accountId, action, input)
+    if (!result)
+      return
+    if (result.sceneRestored === false) {
+      toast.error(result.notice || '牧场场景恢复未确认，请刷新核对操作结果')
+      return
+    }
+    if (result.status === 'skipped') {
+      toast.info(result.notice || '当前没有可操作项目')
+    }
+    else if (action === 'feed' && result.bucketRemainingSeconds !== undefined) {
+      const can = input.bucketType === 1 ? '有机罐头' : '普通罐头'
+      const remaining = Number(result.bucketRemainingSeconds)
+      const duration = remaining > 0 && remaining < 3600 ? formatDuration(remaining) : formatHours(remaining)
+      let message = `喂养完成，${can}剩余 ${duration}`
+      if (input.produceAfterFeed)
+        message += result.autoProduced ? `，已开始生产 ${result.autoProduced} 只` : '，当前没有可生产的动物'
+      if (result.autoProductionNotice)
+        toast.warning(`${message}。${result.autoProductionNotice}`)
+      else
+        toast.success(message)
+    }
+    else {
+      const labels = { feed: '喂养完成', produce: '已开始生产', harvest: '收获完成', clean: '清理完成' }
+      toast.success(result.notice || labels[action])
+    }
+    if (result.refreshRequired)
+      await ranch.reload(accountId)
+  }
+
+  async function request(action: string, input: Record<string, unknown> = {}, acceptedTerms?: RanchPurchaseTerms) {
     const accountId = String(currentAccountId.value || '')
     if (!accountId || disabled.value)
       return
@@ -52,20 +110,28 @@ export function provideRanchActions(): RanchActions {
       toast.info('当前没有可操作项目')
       return
     }
-    pending.value = { accountId, action, input, quote }
+    const chosen = { accountId, action, input, quote }
+    if (!acceptedTerms) {
+      pending.value = chosen
+      return
+    }
+    if (itemTotals(quote.costItems) !== itemTotals(acceptedTerms.costItems) || itemTotals(quote.rewards) !== itemTotals(acceptedTerms.rewards)) {
+      toast.error('操作内容或消耗已变化，请重新选择')
+      const hostGid = typeof input.hostGid === 'string' && input.hostGid ? input.hostGid : undefined
+      await ranch.reload(accountId, hostGid ? { hostGid } : undefined)
+      return
+    }
+    await execute(chosen)
   }
 
   async function confirm() {
     const chosen = pending.value
-    if (!chosen || chosen.accountId !== String(currentAccountId.value || ''))
+    if (!chosen || busy.value || chosen.accountId !== String(currentAccountId.value || ''))
       return
-    const succeeded = await ranch.execute(chosen.accountId, chosen.action, chosen.input, chosen.quote.expected)
-    pending.value = null
-    if (succeeded && chosen.accountId === String(currentAccountId.value || ''))
-      await ranch.reload(chosen.accountId)
+    await execute(chosen)
   }
 
-  // 操作结果用轻提示告知；失败信息留在页面上，便于刷新核对。
+  // 操作成功用轻提示告知；失败提示由当前面板的 RanchGate 统一展示。
   watch(notice, (message) => {
     if (!message)
       return
@@ -76,7 +142,7 @@ export function provideRanchActions(): RanchActions {
     pending.value = null
   })
 
-  const actions: RanchActions = { pending, disabled, request, confirm, cancel: () => (pending.value = null) }
+  const actions: RanchActions = { pending, disabled, request, requestDirect, confirm, cancel: () => (pending.value = null) }
   provide(actionsKey, actions)
   return actions
 }
@@ -126,6 +192,13 @@ export function useRanchClock() {
   return { serverNow, remainingSeconds }
 }
 
+/** 设施固定顺序：窝（6）、棚（7）、牧草机（8）。服务器返回顺序不固定，列表统一按此排列。 */
+const FACILITY_ORDER: Record<number, number> = { 6: 0, 7: 1, 8: 2 }
+export function sortFacilities<T extends { moduleType?: number | string, id?: number | string }>(list: T[]): T[] {
+  return [...list].sort((a, b) => (FACILITY_ORDER[Number(a.moduleType)] ?? 9) - (FACILITY_ORDER[Number(b.moduleType)] ?? 9)
+    || String(a.id ?? '').localeCompare(String(b.id ?? ''), undefined, { numeric: true }))
+}
+
 export function formatDuration(seconds: number | string) {
   const n = Math.max(0, Math.ceil(Number(seconds) || 0))
   const d = Math.floor(n / 86400)
@@ -147,6 +220,10 @@ export function formatHours(seconds: number | string) {
 }
 
 /** 数量字段可能超出安全整数，按 BigInt 加千分位。 */
+export function formatRanchReward(item: RanchItem) {
+  return Number(item.id) === 1006 ? formatDuration(item.count) : `×${formatCount(item.count)}`
+}
+
 export function formatCount(value: unknown) {
   const text = String(value ?? '0')
   try {

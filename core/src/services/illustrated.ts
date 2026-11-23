@@ -16,7 +16,7 @@ const { getAvailableSeeds } = require('./farm');
 const protobuf = require('protobufjs');
 const { sendMsgAsync } = require('../utils/network');
 const { types } = require('../utils/proto');
-const { toNum } = require('../utils/utils');
+const { toLong, toNum } = require('../utils/utils');
 
 const SERVICE = 'gamepb.illustratedpb.IllustratedService';
 
@@ -55,6 +55,7 @@ function itemDto(input: any): any {
     const name = String(item && item.name || plant && plant.name || getPlantNameBySeedId(seedId));
     return {
         seedId,
+        fruitId: toNum(input && input.fruit_id),
         name,
         image: getItemImageById(seedId),
         rewardCategory: toNum(input && input.rarity),
@@ -157,13 +158,29 @@ function getIllustratedSnapshot(): Promise<any> {
 }
 
 let claimTail: Promise<any> = Promise.resolve();
-function claimIllustratedRewards(type: number) {
+function claimIllustratedRewards(type: number, options: {
+    canContinue?: () => boolean;
+    beforeSend?: (levels: number[]) => void;
+    skipUnavailable?: boolean;
+} = {}) {
     const request = claimTail.then(async () => {
         if (type !== 1 && type !== 2) throw new Error('图鉴类型无效');
+        if (options.canContinue && !options.canContinue()) return null;
         const levels = await getIllustratedLevels(type);
-        if (!(levels.level_list || []).some((v: any) => v.can_claim && !v.claimed)) throw new Error('暂无可领取奖励');
+        const claimable = (levels.level_list || []).filter((v: any) => v.can_claim && !v.claimed);
+        if (!claimable.length) {
+            if (options.skipUnavailable) return null;
+            throw new Error('暂无可领取奖励');
+        }
+        if (options.canContinue && !options.canContinue()) return null;
         const body = types.ClaimAllRewardsV2Request.encode({ type }).finish();
-        const reply = await sendMsgAsync(SERVICE, 'ClaimAllRewardsV2', body);
+        const reply = await sendMsgAsync(SERVICE, 'ClaimAllRewardsV2', body, {
+            beforeSend: () => {
+                if (options.canContinue && !options.canContinue()) return new Error('图鉴自动领奖已关闭');
+                options.beforeSend?.(claimable.map((level: any) => toNum(level.level)));
+                return null;
+            },
+        });
         const decoded = types.ClaimAllRewardsV2Reply.decode(reply.body);
         if (!decoded.claimed_level_ids?.length) throw new Error('领取结果未确认，请刷新图鉴后查看');
         const result = { rewards: (decoded.total_rewards || []).map(rewardDto).filter(Boolean), claimedLevels: decoded.claimed_level_ids };
@@ -175,7 +192,20 @@ function claimIllustratedRewards(type: number) {
     return request;
 }
 
+async function clearIllustratedNew(fruitIds: number[]): Promise<{ cleared: number[] }> {
+    const ids: number[] = (Array.isArray(fruitIds) ? fruitIds : []).map((id: any) => toNum(id)).filter((id: number) => id > 0);
+    if (!ids.length) return { cleared: [] };
+    const body = types.ClearNewUnlockedFruitsV2Request.encode(types.ClearNewUnlockedFruitsV2Request.create({
+        fruit_ids: ids.map((id: number) => toLong(id)),
+        scope: 1,
+    })).finish();
+    const { body: replyBody } = await sendMsgAsync(SERVICE, 'ClearNewUnlockedFruitsV2', body);
+    return { cleared: (types.ClearNewUnlockedFruitsV2Reply.decode(replyBody).cleared_fruit_ids || []).map((id: any) => toNum(id)) };
+}
+
 module.exports = {
     getIllustratedSnapshot,
+    getIllustratedLevels,
     claimIllustratedRewards,
+    clearIllustratedNew,
 };

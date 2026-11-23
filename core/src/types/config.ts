@@ -11,7 +11,7 @@ export type PlantingStrategy =
 
 export type BagSeedFallbackStrategy = Exclude<PlantingStrategy, 'bag_priority'>;
 
-export type FertilizerMode = 'both' | 'normal' | 'organic' | 'smart' | 'none';
+export type FertilizerMode = 'both' | 'normal' | 'organic' | 'smart' | 'none' | 'normal_ripen' | 'organic_ripen';
 
 export type FertilizerLandType = 'blue-crystal' | 'purple-gold' | 'gold' | 'black' | 'red' | 'normal';
 
@@ -19,6 +19,7 @@ export interface AutomationConfig extends RanchAutomationConfig {
   farm: boolean;
   farm_harvest_tiangong: boolean;
   farm_push: boolean;
+  farm_illustrated: boolean;
   land_upgrade: boolean;
   friend: boolean;
   friend_auto_accept: boolean;
@@ -77,6 +78,7 @@ export interface AccountConfig {
   knownFriendGidSyncCooldownSec: number;
   friendsListCacheTtlSec: number;
   friendBlacklist: number[];
+  ranchFriendBlacklist: number[];
   plantBlacklist: number[];
   stealDelaySeconds: number;
   plantOrderRandom: boolean;

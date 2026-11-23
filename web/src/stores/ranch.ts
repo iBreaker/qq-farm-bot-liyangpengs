@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 
-export type RanchView = 'animals' | 'facilities' | 'shop' | 'market' | 'bag' | 'tasks' | 'illustrated' | 'friends' | 'activities' | 'cans'
+export type RanchView = 'overview' | 'mall' | 'animals' | 'facilities' | 'shop' | 'market' | 'bag' | 'tasks' | 'illustrated' | 'friends' | 'activities' | 'cans'
 export interface RanchItem { id: number, name: string, count: string, image: string }
 export interface RanchQuote {
   action: string
@@ -14,6 +14,18 @@ export interface RanchQuote {
   skipped: boolean
   count: number
   message?: string
+}
+
+export interface RanchOperationResult {
+  status: 'confirmed' | 'skipped'
+  snapshot?: any
+  notice?: string
+  completed?: number
+  bucketRemainingSeconds?: string
+  autoProduced?: number
+  autoProductionNotice?: string
+  refreshRequired?: boolean
+  sceneRestored?: boolean
 }
 
 export const useRanchStore = defineStore('ranch', () => {
@@ -67,10 +79,10 @@ export const useRanchStore = defineStore('ranch', () => {
     }
   }
 
-  async function reload(accountId: string) {
+  async function reload(accountId: string, overrides?: { hostGid?: string }) {
     const query = lastQuery
     if (query && query.accountId === accountId)
-      await load(query.accountId, query.view, query.shopId, query.hostGid)
+      await load(query.accountId, query.view, query.shopId, overrides?.hostGid ?? query.hostGid)
   }
 
   async function quote(accountId: string, action: string, input: Record<string, unknown>): Promise<RanchQuote | null> {
@@ -98,32 +110,32 @@ export const useRanchStore = defineStore('ranch', () => {
   }
 
   /** quiet：后台上报类操作只确认结果，不弹出完成提示。 */
-  async function execute(accountId: string, action: string, input: Record<string, unknown>, expected: RanchQuote['expected'], options: { quiet?: boolean } = {}) {
+  async function submit(accountId: string, action: string, input: Record<string, unknown>, confirmation: { expected: RanchQuote['expected'] } | { direct: true }, options: { quiet?: boolean }): Promise<RanchOperationResult | null> {
     if (busy.value || owner !== accountId)
-      return false
+      return null
     const version = generation
     busy.value = true
     error.value = ''
     notice.value = ''
     try {
-      const response = await api.post(`/api/ranch/${action}`, { ...input, expected }, { headers: { 'x-account-id': accountId }, timeout: 45000, skipErrorToast: true } as any)
+      const response = await api.post(`/api/ranch/${action}`, { ...input, ...confirmation }, { headers: { 'x-account-id': accountId }, timeout: 45000, skipErrorToast: true } as any)
       if (!response.data?.ok)
         throw new Error(response.data?.error || '牧场操作未完成')
       if (!current(accountId, version))
-        return false
-      const result = response.data.data
+        return null
+      const result: RanchOperationResult = response.data.data
       if (result.snapshot) {
         state.value = { ...state.value, ...result.snapshot }
         receivedAt.value = Date.now()
       }
       if (!options.quiet)
         notice.value = result.notice || (result.status === 'skipped' ? '当前没有可操作项目' : '操作完成')
-      return true
+      return result
     }
     catch (cause) {
       if (current(accountId, version))
         error.value = getApiErrorMessage(cause, '牧场操作未完成，请刷新核对')
-      return false
+      return null
     }
     finally {
       if (current(accountId, version))
@@ -131,5 +143,13 @@ export const useRanchStore = defineStore('ranch', () => {
     }
   }
 
-  return { state, loading, busy, error, notice, receivedAt, load, reload, quote, execute, reset }
+  async function execute(accountId: string, action: string, input: Record<string, unknown>, expected: RanchQuote['expected'], options: { quiet?: boolean } = {}) {
+    return !!(await submit(accountId, action, input, { expected }, options))
+  }
+
+  function executeDirect(accountId: string, action: string, input: Record<string, unknown>) {
+    return submit(accountId, action, input, { direct: true }, { quiet: true })
+  }
+
+  return { state, loading, busy, error, notice, receivedAt, load, reload, quote, execute, executeDirect, reset }
 })

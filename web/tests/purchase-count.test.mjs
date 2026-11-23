@@ -72,16 +72,16 @@ test('purchaseMaxCount caps by limit remaining, balance and hard cap', () => {
       { id: 1042, count: 3, balance: 20 },
     ],
   }), 6)
-  // 余额不足一份时下限为 1（提交时有余额校验兜底）
+  // 余额不足一份时不可购买
   assert.equal(purchaseMaxCount({
     limitRemaining: 10,
     costs: [{ id: 1041, count: 100, balance: 5 }],
-  }), 1)
+  }), 0)
   // 自定义硬上限
   assert.equal(purchaseMaxCount({ limitRemaining: 50, costs: [], cap: 20 }), 20)
-  // 限购剩余为 0（售罄兜底）也不低于 1
+  // 限购剩余为 0 时不可购买
   assert.equal(purchaseMaxCount({
     limitRemaining: 0,
     costs: [{ id: 1041, count: 1, balance: 100 }],
-  }), 1)
+  }), 0)
 })
